@@ -218,6 +218,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private String greetingName = "";
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
     private SkyView sky;
+    private com.gathin.winter.WinterCabinView winterCabin;
     private String vpnApp;
     /** vpn_pill: the VPN shown as its own pill (btnVpn) instead of a badge in the network pill. Off with top_menu. */
     private boolean vpnPill;
@@ -514,7 +515,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         getWindow().setBackgroundDrawable(null);
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
-        sky.setIntensity(cfg.skyIntensity);
+        sky.setIntensity(cfg.winterCabin ? 0 : cfg.skyIntensity);
+        if (cfg.winterCabin) {
+            winterCabin = new com.gathin.winter.WinterCabinView(this);
+            root.addView(winterCabin, root.indexOfChild(sky) + 1,
+                    new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         glass = findViewById(R.id.glass);
         glass.setStyle(cfg.glassStyle);
         if (festive) glass.setAccent(festival.accentColor());
@@ -1139,7 +1146,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (showStats) startStats();
         if (gameDay != null) gameDay.start();
         sky.update();
-        wallpaperPlayer.start();
+        if (winterCabin == null) {
+            wallpaperPlayer.start();
+        } else if (!reducedMotion) {
+            winterCabin.start();
+        }
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && lamp != null) {
             lamp.start();
@@ -1307,6 +1318,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         resumed = false;
+        if (winterCabin != null) winterCabin.stop();
         // No UP reaches a paused Home, so a vendor-key hold it saw go down would still open its app later.
         // Only Home's own share is dropped: a key service that saw the same DOWN keeps its hold.
         RemoteKeys.release(this);
@@ -1362,6 +1374,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtCache.clear();
         heroArtKey = null;
         wallpaperPlayer.releaseForMemoryPressure();
+        if (winterCabin != null) winterCabin.releaseArtwork();
         tileRefresh.invalidate();
     }
 
@@ -1394,6 +1407,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         unregisterReceiver(packageReceiver);
         if (openOnStartOnWake) unregisterReceiver(wakeReceiver);
         wallpaperPlayer.close();
+        if (winterCabin != null) winterCabin.stop();
         ConnectivityManager cm = getApplicationContext().getSystemService(ConnectivityManager.class);   // as registered
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);
